@@ -1,1 +1,6 @@
-pytest>=8.0
+#pytest>=8.0
+langchain-ollama
+langchain-core
+langgraph
+requests
+pytest
