@@ -47,7 +47,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 from src.components.part_1_searcher.agent import run_searcher_agent
 
 try:
-    from src.components.part_2_fact_checker.agent import fact_checker_agent_node
+    from src.components.part_2_fact_checker.agent import fact_checker_node
     FACT_CHECKER_READY = True
 except ImportError:
     FACT_CHECKER_READY = False
@@ -86,10 +86,14 @@ def main() -> None:
     state = run_searcher_agent(state)
     print(json.dumps(state["search_results"], indent=2))
 
-    # # ── Agent 2: Fact Checker ────────────────────────────────────────────────
-    # if FACT_CHECKER_READY:
-    #     print("\n=== Agent 2: Fact Checker ===")
-    #     state = fact_checker_agent_node(state)
+    if FACT_CHECKER_READY:
+            print("\n=== Agent 2: Fact Checker ===")
+            print("Agent 2 is thinking and verifying claims via Wikipedia...")
+            # UPDATED: Call your actual function
+            state = fact_checker_node(state)
+            
+            print("\n🔍 VERIFIED OUTPUT FROM AGENT 2:")
+            print(state.get("verified_claims"))
 
     # # ── Agent 3: Summarizer ──────────────────────────────────────────────────
     # if SUMMARIZER_READY:
