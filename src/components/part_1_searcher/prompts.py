@@ -1,0 +1,1 @@
+SEARCH_PROMPT = "Search the local knowledge base and return raw findings for the given topic."

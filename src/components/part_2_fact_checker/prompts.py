@@ -1,0 +1,1 @@
+FACT_CHECK_PROMPT = "Review candidate claims and return only verified claims with sources."
