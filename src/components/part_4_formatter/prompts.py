@@ -1,1 +1,1 @@
-FORMATTER_PROMPT = "Formatter agent prompt placeholder removed for reassignment."
+FORMATTER_PROMPT = "Format verified research state into a clean Markdown or HTML report without adding facts."
