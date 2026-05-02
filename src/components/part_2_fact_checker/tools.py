@@ -16,18 +16,22 @@ def verify_fact_wikipedia(query: str) -> str:
         "srlimit": 1
     }
     
-    # ADD THIS: Identify your app to Wikipedia so they don't block you
     headers = {
         "User-Agent": "CTSE_Assignment2_Bot/1.0 (Educational Project)"
     }
     
     try:
-        # UPDATE THIS: Pass the headers into the get request
         response = requests.get(url, params=params, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
         
-        if data["query"]["search"]:
+        # --- NEW DEFENSIVE SAFETY CHECKS ---
+        # 1. Check if Wikipedia returned an error instead of results
+        if "error" in data:
+            return f"Wikipedia API Error: {data['error'].get('info', 'Invalid search query.')}"
+            
+        # 2. Safely check if 'query' and 'search' exist in the data
+        if "query" in data and data["query"].get("search"):
             snippet = data["query"]["search"][0]["snippet"]
             clean_snippet = snippet.replace('<span class="searchmatch">', '').replace('</span>', '')
             return f"Wikipedia findings for '{query}': {clean_snippet}"
