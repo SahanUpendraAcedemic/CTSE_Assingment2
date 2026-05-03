@@ -1,41 +1,66 @@
 from langchain_ollama import ChatOllama
-from langgraph.prebuilt import create_react_agent
-from .prompts import FACT_CHECKER_SYSTEM_PROMPT
+from langchain_core.messages import HumanMessage, SystemMessage
 from .tools import verify_fact_wikipedia
+import json
 
-def get_fact_checker_agent():
-    """
-    Initializes the local Llama3.1 model and creates a ReAct agent 
-    capable of autonomously running tools in a loop.
-    """
-    # Initialize the local LLM
-    llm = ChatOllama(model="llama3.1", temperature=0.2)
-    
-    # List the tools the agent is allowed to use
-    tools = [verify_fact_wikipedia]
-    
-    # create_react_agent automatically builds the LangGraph logic to handle tool calling!
-    agent_executor = create_react_agent(
-        llm, 
-        tools, 
-        prompt=FACT_CHECKER_SYSTEM_PROMPT
-    )
-    return agent_executor
+# We update the prompt to explicitly tell the model HOW to use the tool
+FACT_CHECKER_SYSTEM_PROMPT = """
+You are a meticulous Senior Information Auditor. Your goal is to fact-check research.
+If you need to verify a fact, you MUST output a JSON object in exactly this format:
+{"action": "search_wikipedia", "query": "your search term here"}
+
+If you have verified the facts and are ready to output the final corrected text, 
+output it normally as plain text. Do not output JSON when providing the final answer.
+"""
 
 def fact_checker_node(state: dict) -> dict:
     """
-    Wrapper node to execute the agent and parse the results.
+    Custom ReAct loop that manually handles tool calling for models
+    that do not support native LangChain tool binding (like phi3).
     """
-    # 1. Look for 'search_results' instead of 'research_data'
     research_to_check = state.get("search_results", "")
-    agent = get_fact_checker_agent()
     
-    inputs = {
-        "messages": [("user", f"Please verify this research: {research_to_check}")]
-    }
+    # We use the lightweight phi3 model
+    llm = ChatOllama(model="phi3", temperature=0.2)
     
-    result = agent.invoke(inputs)
-    final_answer = result["messages"][-1].content
+    messages = [
+        SystemMessage(content=FACT_CHECKER_SYSTEM_PROMPT),
+        HumanMessage(content=f"Please verify this research:\n{research_to_check}")
+    ]
     
-    # 2. Save the output to 'verified_claims' so the rest of the app can find it
-    return {"verified_claims": final_answer}
+    # We will let the agent loop up to 3 times to gather facts
+    max_loops = 3
+    
+    for i in range(max_loops):
+        print(f"   [Agent 2 Loop {i+1}] Thinking...")
+        response = llm.invoke(messages)
+        content = response.content
+        
+        # Check if the model is trying to call our tool
+        if '{"action": "search_wikipedia"' in content:
+            try:
+                # Extract the JSON command from the text
+                start_idx = content.find('{')
+                end_idx = content.rfind('}') + 1
+                json_str = content[start_idx:end_idx]
+                command = json.loads(json_str)
+                
+                query = command.get("query", "")
+                print(f"   [Agent 2] Searching Wikipedia for: '{query}'")
+                
+                # Run the tool
+                tool_result = verify_fact_wikipedia.invoke({"query": query})
+                
+                # Add the tool result back into the conversation history
+                messages.append(response) # Add the AI's request
+                messages.append(HumanMessage(content=f"Tool Result:\n{tool_result}"))
+                
+            except json.JSONDecodeError:
+                messages.append(HumanMessage(content="Error parsing your JSON tool request. Please format exactly as requested."))
+        else:
+            # If no tool is requested, the model has output the final answer!
+            print("   [Agent 2] Final fact-check complete.")
+            return {"verified_claims": content}
+            
+    # Fallback if it loops too many times without finishing
+    return {"verified_claims": "Fact-checker timed out. Here is the partial result:\n" + content}
